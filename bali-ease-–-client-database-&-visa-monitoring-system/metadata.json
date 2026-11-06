@@ -1,0 +1,6 @@
+{
+  "name": "Bali Ease – Client Database & Visa Monitoring System",
+  "description": "Client database, visa monitoring, and stay permit reminder system for PT Bali Terang Bersinar (Bali Ease).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

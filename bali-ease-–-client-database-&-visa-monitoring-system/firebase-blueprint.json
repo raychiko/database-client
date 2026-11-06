@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role definition",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["ADMIN", "CS"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Marker document for admin authorization",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "VisaClient": {
+      "title": "VisaClient",
+      "description": "Client Visa & Stay Permit record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "date": { "type": "string", "maxLength": 32 },
+        "rekanan": { "type": "string", "maxLength": 128 },
+        "imigrasi": { "type": "string", "maxLength": 128 },
+        "service": { "type": "string", "maxLength": 128 },
+        "namaClient": { "type": "string", "maxLength": 200 },
+        "noPermohonan": { "type": "string", "maxLength": 128 },
+        "noPassport": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "maxLength": 128 },
+        "staypermit": { "type": "string", "maxLength": 32 },
+        "evisa": { "type": "string", "maxLength": 128 },
+        "sponsor": { "type": "string", "maxLength": 200 },
+        "statusFollowUp": { "type": "string", "maxLength": 128 },
+        "remark": { "type": "string", "maxLength": 1000 },
+        "lastFollowUpDate": { "type": "string", "maxLength": 64 },
+        "nextFollowUpDate": { "type": "string", "maxLength": 64 },
+        "createdAt": { "type": "string" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdById": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedById": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["namaClient", "noPassport", "service", "status"]
+    },
+    "MasterDataItem": {
+      "title": "MasterDataItem",
+      "description": "Dropdown option item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "enum": ["rekanan", "imigrasi", "service", "status", "statusFollowUp"] },
+        "value": { "type": "string", "maxLength": 128 },
+        "label": { "type": "string", "maxLength": 128 },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["category", "value", "label"]
+    },
+    "ReminderSetting": {
+      "title": "ReminderSetting",
+      "description": "Stay permit reminder settings per service type",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "service": { "type": "string", "maxLength": 128 },
+        "daysBeforeExpiry": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["service", "daysBeforeExpiry", "isActive"]
+    },
+    "FollowUpRecord": {
+      "title": "FollowUpRecord",
+      "description": "Historical client follow-up log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "clientId": { "type": "string", "maxLength": 128 },
+        "followUpDate": { "type": "string", "maxLength": 32 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 128 },
+        "status": { "type": "string", "maxLength": 128 },
+        "remark": { "type": "string", "maxLength": 1000 },
+        "nextFollowUpDate": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["clientId", "followUpDate", "userName", "status"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Audit record of operations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 128 },
+        "activityType": { "type": "string", "maxLength": 128 },
+        "targetRecord": { "type": "string", "maxLength": 200 },
+        "details": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "userName", "activityType", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and assigned role"
+    },
+    "/admins/{userId}": {
+      "schema": "Admin",
+      "description": "Admin authorization registry"
+    },
+    "/visaClients/{clientId}": {
+      "schema": "VisaClient",
+      "description": "Client visa & stay permit database"
+    },
+    "/masterData/{itemId}": {
+      "schema": "MasterDataItem",
+      "description": "Master dropdown options managed by Admin"
+    },
+    "/reminderSettings/{settingId}": {
+      "schema": "ReminderSetting",
+      "description": "Stay permit reminder thresholds per service"
+    },
+    "/followUpHistory/{followUpId}": {
+      "schema": "FollowUpRecord",
+      "description": "Follow-up history records"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Administrative audit logs"
+    }
+  }
+}

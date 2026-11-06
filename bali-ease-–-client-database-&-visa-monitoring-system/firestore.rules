@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Open access for unauthenticated operational mode as requested by user
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
