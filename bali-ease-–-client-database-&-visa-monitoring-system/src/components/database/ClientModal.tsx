@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, User, Calendar, ShieldCheck, AlertCircle } from 'lucide-react';
 import { VisaClient } from '../../types';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { getTodayWITAString, normalizeDateString } from '../../utils/dateUtils';
 
 interface ClientModalProps {
@@ -12,6 +13,13 @@ interface ClientModalProps {
 
 export const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, client }) => {
   const { addClient, updateClient, getMasterOptions, clients } = useData();
+  const { isAdmin, hasPermission } = useAuth();
+
+  const canEditPassport = !client || isAdmin || hasPermission('canEditPassportNo');
+  const canEditStatus = !client || isAdmin || hasPermission('canEditVisaStatus');
+  const canEditExpiry = !client || isAdmin || hasPermission('canEditExpiryDate');
+  const canEditSponsor = !client || isAdmin || hasPermission('canEditSponsor');
+  const canEditService = !client || isAdmin || hasPermission('canEditService');
 
   const rekananOptions = getMasterOptions('rekanan');
   const imigrasiOptions = getMasterOptions('imigrasi');
@@ -25,6 +33,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, clien
     imigrasi: imigrasiOptions[0] || 'Ngurah Rai (Kanim Denpasar)',
     service: serviceOptions[0] || 'Altus ITAS',
     namaClient: '',
+    clientPhone: '',
     noPermohonan: '',
     noPassport: '',
     status: statusOptions[0] || 'Active',
@@ -46,6 +55,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, clien
         imigrasi: client.imigrasi || imigrasiOptions[0] || '',
         service: client.service || serviceOptions[0] || '',
         namaClient: client.namaClient || '',
+        clientPhone: client.clientPhone || '',
         noPermohonan: client.noPermohonan || '',
         noPassport: client.noPassport || '',
         status: client.status || statusOptions[0] || '',
@@ -63,6 +73,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, clien
         imigrasi: imigrasiOptions[0] || 'Ngurah Rai (Kanim Denpasar)',
         service: serviceOptions[0] || 'Altus ITAS',
         namaClient: '',
+        clientPhone: '',
         noPermohonan: '',
         noPassport: '',
         status: statusOptions[0] || 'Active',
@@ -209,13 +220,16 @@ export const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, clien
             {/* Service */}
             <div>
               <label className="block text-xs font-semibold text-[#133D3D] mb-1">
-                Service (Layanan Visa) *
+                Service (Layanan Visa) * {!canEditService && <span className="text-gray-400 font-normal">(Terkunci)</span>}
               </label>
               <select
                 required
+                disabled={!canEditService}
                 value={formData.service}
                 onChange={(e) => setFormData({ ...formData, service: e.target.value })}
-                className="w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 bg-white text-gray-800 font-medium focus:outline-none focus:ring-1 focus:ring-[#133D3D]"
+                className={`w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 font-medium focus:outline-none focus:ring-1 focus:ring-[#133D3D] ${
+                  !canEditService ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800'
+                }`}
               >
                 {serviceOptions.map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
@@ -241,20 +255,37 @@ export const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, clien
             {/* No Passport */}
             <div>
               <label className="block text-xs font-semibold text-[#133D3D] mb-1">
-                No Passport * (Teks/Preserve 0)
+                No Passport * (Teks/Preserve 0) {!canEditPassport && <span className="text-gray-400 font-normal">(Terkunci)</span>}
               </label>
               <input
                 type="text"
                 required
+                disabled={!canEditPassport}
                 placeholder="contoh: E01234567"
                 value={formData.noPassport}
                 onChange={(e) => handlePassportChange(e.target.value)}
-                className="w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 bg-white text-gray-800 font-mono font-medium focus:outline-none focus:ring-1 focus:ring-[#133D3D]"
+                className={`w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 font-mono font-medium focus:outline-none focus:ring-1 focus:ring-[#133D3D] ${
+                  !canEditPassport ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800'
+                }`}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Client Phone Number */}
+            <div>
+              <label className="block text-xs font-semibold text-[#133D3D] mb-1">
+                Client Phone Number <span className="text-gray-400 font-normal">(Opsional)</span>
+              </label>
+              <input
+                type="tel"
+                placeholder="contoh: +6281234567890"
+                value={formData.clientPhone}
+                onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
+                className="w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 bg-white text-gray-800 font-mono focus:outline-none focus:ring-1 focus:ring-[#133D3D]"
+              />
+            </div>
+
             {/* No Permohonan */}
             <div>
               <label className="block text-xs font-semibold text-[#133D3D] mb-1">
@@ -272,34 +303,40 @@ export const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, clien
             {/* Status */}
             <div>
               <label className="block text-xs font-semibold text-[#133D3D] mb-1">
-                Status Visa
+                Status Visa {!canEditStatus && <span className="text-gray-400 font-normal">(Terkunci)</span>}
               </label>
               <select
+                disabled={!canEditStatus}
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#133D3D]"
+                className={`w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#133D3D] ${
+                  !canEditStatus ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800'
+                }`}
               >
                 {statusOptions.map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
             </div>
-
-            {/* Staypermit Expiry Date */}
-            <div>
-              <label className="block text-xs font-semibold text-[#133D3D] mb-1">
-                Staypermit (Masa Berlaku Expired)
-              </label>
-              <input
-                type="date"
-                value={formData.staypermit}
-                onChange={(e) => setFormData({ ...formData, staypermit: e.target.value })}
-                className="w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 bg-white text-gray-800 font-medium focus:outline-none focus:ring-1 focus:ring-[#133D3D]"
-              />
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Staypermit Expiry Date */}
+            <div>
+              <label className="block text-xs font-semibold text-[#133D3D] mb-1">
+                Staypermit (Masa Berlaku Expired) {!canEditExpiry && <span className="text-gray-400 font-normal">(Terkunci)</span>}
+              </label>
+              <input
+                type="date"
+                disabled={!canEditExpiry}
+                value={formData.staypermit}
+                onChange={(e) => setFormData({ ...formData, staypermit: e.target.value })}
+                className={`w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 font-medium focus:outline-none focus:ring-1 focus:ring-[#133D3D] ${
+                  !canEditExpiry ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800'
+                }`}
+              />
+            </div>
+
             {/* EVISA */}
             <div>
               <label className="block text-xs font-semibold text-[#133D3D] mb-1">
@@ -317,17 +354,22 @@ export const ClientModal: React.FC<ClientModalProps> = ({ isOpen, onClose, clien
             {/* Sponsor */}
             <div>
               <label className="block text-xs font-semibold text-[#133D3D] mb-1">
-                Sponsor / Penjamin
+                Sponsor / Penjamin {!canEditSponsor && <span className="text-gray-400 font-normal">(Terkunci)</span>}
               </label>
               <input
                 type="text"
+                disabled={!canEditSponsor}
                 placeholder="Nama sponsor atau PT"
                 value={formData.sponsor}
                 onChange={(e) => setFormData({ ...formData, sponsor: e.target.value })}
-                className="w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-[#133D3D]"
+                className={`w-full text-xs border border-[#D6C3A2] rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-[#133D3D] ${
+                  !canEditSponsor ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-800'
+                }`}
               />
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Status Follow-up */}
             <div>
               <label className="block text-xs font-semibold text-[#133D3D] mb-1">

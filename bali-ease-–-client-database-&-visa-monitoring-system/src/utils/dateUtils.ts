@@ -122,3 +122,20 @@ export function formatDateTimeDisplay(isoStr?: string): string {
     return isoStr;
   }
 }
+
+// Calculate Reminder Date based on formula: Reminder Date = Expiry Date - Reminder Days
+export function calculateReminderDate(expiryDateStr: string, reminderDays: number): string | null {
+  if (!expiryDateStr || reminderDays <= 0) return null;
+  const normalized = normalizeDateString(expiryDateStr);
+  const parts = normalized.split('-');
+  if (parts.length !== 3) return null;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10) - 1;
+  const d = parseInt(parts[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+
+  const expUtc = Date.UTC(y, m, d);
+  const reminderUtc = expUtc - (reminderDays * 86400 * 1000);
+  const resDate = new Date(reminderUtc);
+  return resDate.toISOString().split('T')[0];
+}
