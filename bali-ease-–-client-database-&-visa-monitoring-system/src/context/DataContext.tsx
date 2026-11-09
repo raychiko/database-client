@@ -21,13 +21,15 @@ import {
   FollowUpRecord,
   AuditLog,
   StayPermitReminderItem,
+  VisaService,
 } from '../types';
-import { calculateRemainingDays, getTodayWITAString, normalizeDateString } from '../utils/dateUtils';
+import { calculateRemainingDays, getTodayWITAString, normalizeDateString, calculateReminderDate } from '../utils/dateUtils';
 
 interface DataContextType {
   clients: VisaClient[];
   masterData: MasterDataItem[];
   reminderSettings: ReminderSetting[];
+  visaServices: VisaService[];
   followUps: FollowUpRecord[];
   auditLogs: AuditLog[];
   loading: boolean;
@@ -40,6 +42,10 @@ interface DataContextType {
   addMasterItem: (category: MasterCategory, value: string, label: string) => Promise<void>;
   updateMasterItem: (id: string, value: string, label: string) => Promise<void>;
   deleteMasterItem: (id: string) => Promise<void>;
+  // Visa Services (Settings)
+  addVisaService: (serviceData: Omit<VisaService, 'id' | 'createdAt' | 'updatedAt' | 'updatedBy'>) => Promise<string>;
+  updateVisaService: (id: string, serviceData: Partial<VisaService>) => Promise<void>;
+  deleteVisaService: (id: string) => Promise<void>;
   // Reminder Settings
   addReminderSetting: (service: string, daysBeforeExpiry: number) => Promise<void>;
   updateReminderSetting: (id: string, daysBeforeExpiry: number, isActive: boolean) => Promise<void>;
@@ -64,11 +70,12 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUser, userProfile, isAdmin, recordAudit } = useAuth();
+  const { currentUser, userProfile, isAdmin, hasPermission, recordAudit } = useAuth();
 
   const [clients, setClients] = useState<VisaClient[]>([]);
   const [masterData, setMasterData] = useState<MasterDataItem[]>([]);
   const [reminderSettings, setReminderSettings] = useState<ReminderSetting[]>([]);
+  const [visaServices, setVisaServices] = useState<VisaService[]>([]);
   const [followUps, setFollowUps] = useState<FollowUpRecord[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +86,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setClients([]);
       setMasterData([]);
       setReminderSettings([]);
+      setVisaServices([]);
       setFollowUps([]);
       setAuditLogs([]);
       setLoading(false);
@@ -134,7 +142,48 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // 4. Follow Up History
+    // 4. Visa Services (Settings -> Visa Services)
+    const unsubVisaServices = onSnapshot(
+      collection(db, 'visaServices'),
+      async (snapshot) => {
+        if (snapshot.empty && isAdmin) {
+          // Additive seeding if empty
+          const batch = writeBatch(db);
+          const defaultServices: Omit<VisaService, 'id'>[] = [
+            { serviceName: 'E28A - Working ITAS', category: 'ITAS', duration: '1 Year', reminderBeforeExpiry: 80, status: 'Active' },
+            { serviceName: 'Altus ITAS', category: 'ITAS', duration: '1 Year', reminderBeforeExpiry: 80, status: 'Active' },
+            { serviceName: 'E33G - Remote Worker (Nomad)', category: 'Visa Tinggal Terbatas', duration: '1 Year', reminderBeforeExpiry: 60, status: 'Active' },
+            { serviceName: 'D12 - Pre-Investment Visa', category: 'Kunjungan', duration: '1 Year', reminderBeforeExpiry: 60, status: 'Active' },
+            { serviceName: 'Investor ITAS (2 Years)', category: 'ITAS', duration: '2 Years', reminderBeforeExpiry: 90, status: 'Active' },
+            { serviceName: 'Retirement ITAS', category: 'ITAS', duration: '1 Year', reminderBeforeExpiry: 60, status: 'Active' },
+            { serviceName: 'Tourist Visa Extension (60 Days)', category: 'Kunjungan', duration: '60 Days', reminderBeforeExpiry: 30, status: 'Active' },
+            { serviceName: 'Visa on Arrival (VoA) Extension', category: 'Kunjungan', duration: '30 Days', reminderBeforeExpiry: 14, status: 'Active' },
+          ];
+          defaultServices.forEach((s) => {
+            const ref = doc(collection(db, 'visaServices'));
+            batch.set(ref, {
+              ...s,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              updatedBy: 'System Seed',
+            });
+          });
+          await batch.commit();
+          return;
+        }
+
+        const list: VisaService[] = [];
+        snapshot.forEach((docSnap) => {
+          list.push({ id: docSnap.id, ...docSnap.data() } as VisaService);
+        });
+        setVisaServices(list);
+      },
+      (err) => {
+        handleFirestoreError(err, OperationType.LIST, 'visaServices');
+      }
+    );
+
+    // 5. Follow Up History
     const unsubFollowUps = onSnapshot(
       query(collection(db, 'followUpHistory'), orderBy('createdAt', 'desc'), limit(500)),
       (snapshot) => {
@@ -149,7 +198,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // 5. Audit Logs (Admin only)
+    // 6. Audit Logs (Admin only)
     let unsubAudit = () => {};
     if (isAdmin) {
       unsubAudit = onSnapshot(
@@ -171,6 +220,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       unsubClients();
       unsubMaster();
       unsubReminders();
+      unsubVisaServices();
       unsubFollowUps();
       unsubAudit();
     };
@@ -187,6 +237,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addClient = async (
     clientData: Omit<VisaClient, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'createdById'>
   ): Promise<string> => {
+    if (!isAdmin && !hasPermission('canCreateClient')) {
+      throw new Error('Anda tidak memiliki izin untuk menambah data client.');
+    }
     try {
       const now = new Date().toISOString();
       const payload = {
@@ -194,6 +247,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         date: normalizeDateString(clientData.date || getTodayWITAString()),
         staypermit: normalizeDateString(clientData.staypermit),
         noPassport: String(clientData.noPassport || '').trim(),
+        clientPhone: String(clientData.clientPhone || '').trim(),
         createdAt: now,
         createdBy: userProfile?.displayName || currentUser?.email || 'User',
         createdById: currentUser?.uid || '',
@@ -216,18 +270,32 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Update Client
   const updateClient = async (id: string, clientData: Partial<VisaClient>): Promise<void> => {
+    if (!isAdmin && !hasPermission('canEditClient')) {
+      throw new Error('Anda tidak memiliki izin untuk mengedit data client.');
+    }
+
     try {
       const clientRef = doc(db, 'visaClients', id);
+      const payload: Record<string, any> = { ...clientData };
+
+      // Protect restricted fields from unauthorized changes
+      if (!isAdmin && !hasPermission('canEditPassportNo')) delete payload.noPassport;
+      if (!isAdmin && !hasPermission('canEditVisaStatus')) delete payload.status;
+      if (!isAdmin && !hasPermission('canEditExpiryDate')) delete payload.staypermit;
+      if (!isAdmin && !hasPermission('canEditSponsor')) delete payload.sponsor;
+      if (!isAdmin && !hasPermission('canEditService')) delete payload.service;
+
       const now = new Date().toISOString();
-      const payload: Record<string, any> = {
-        ...clientData,
-        updatedAt: now,
-        updatedBy: userProfile?.displayName || currentUser?.email || 'User',
-        updatedById: currentUser?.uid || '',
-      };
+      payload.updatedAt = now;
+      payload.updatedBy = userProfile?.displayName || currentUser?.email || 'User';
+      payload.updatedById = currentUser?.uid || '';
+
       if (payload.date) payload.date = normalizeDateString(payload.date);
       if (payload.staypermit) payload.staypermit = normalizeDateString(payload.staypermit);
       if (payload.noPassport) payload.noPassport = String(payload.noPassport).trim();
+      if (payload.clientPhone !== undefined) {
+        payload.clientPhone = String(payload.clientPhone || '').trim();
+      }
 
       await updateDoc(clientRef, payload);
       await recordAudit(
@@ -240,10 +308,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Delete Client (Admin only)
+  // Delete Client (Admin only or canDeleteClient)
   const deleteClient = async (id: string): Promise<void> => {
-    if (!isAdmin) {
-      throw new Error('Hanya Admin yang dapat menghapus data client.');
+    if (!isAdmin && !hasPermission('canDeleteClient')) {
+      throw new Error('Hanya Admin yang memiliki izin untuk menghapus data client.');
     }
     try {
       const target = clients.find((c) => c.id === id);
@@ -255,6 +323,127 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `visaClients/${id}`);
+    }
+  };
+
+  // Visa Services CRUD (Admin only or canEditReminderSettings)
+  const addVisaService = async (
+    serviceData: Omit<VisaService, 'id' | 'createdAt' | 'updatedAt' | 'updatedBy'>
+  ): Promise<string> => {
+    if (!isAdmin && !hasPermission('canEditReminderSettings')) {
+      throw new Error('Hanya Admin yang dapat mengelola Visa Services.');
+    }
+    try {
+      const now = new Date().toISOString();
+      const payload = {
+        ...serviceData,
+        serviceName: serviceData.serviceName.trim(),
+        category: serviceData.category.trim(),
+        duration: serviceData.duration.trim(),
+        reminderBeforeExpiry: Number(serviceData.reminderBeforeExpiry) || 60,
+        status: serviceData.status || 'Active',
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: userProfile?.displayName || currentUser?.email || 'Admin',
+      };
+
+      const docRef = await addDoc(collection(db, 'visaServices'), payload);
+
+      // Auto-sync with reminderSettings so reminder threshold is unified
+      const existingRem = reminderSettings.find(
+        (r) => r.service.trim().toLowerCase() === payload.serviceName.toLowerCase()
+      );
+      if (existingRem) {
+        await updateDoc(doc(db, 'reminderSettings', existingRem.id), {
+          daysBeforeExpiry: payload.reminderBeforeExpiry,
+          isActive: payload.status === 'Active',
+          updatedAt: now,
+          updatedBy: userProfile?.displayName || currentUser?.email || 'Admin',
+        });
+      } else {
+        await addDoc(collection(db, 'reminderSettings'), {
+          service: payload.serviceName,
+          daysBeforeExpiry: payload.reminderBeforeExpiry,
+          isActive: payload.status === 'Active',
+          updatedAt: now,
+          updatedBy: userProfile?.displayName || currentUser?.email || 'Admin',
+        });
+      }
+
+      // Auto-sync with masterData 'service' category
+      const existingMaster = masterData.find(
+        (m) => m.category === 'service' && m.value.trim().toLowerCase() === payload.serviceName.toLowerCase()
+      );
+      if (!existingMaster) {
+        await addDoc(collection(db, 'masterData'), {
+          category: 'service',
+          value: payload.serviceName,
+          label: payload.serviceName,
+          order: masterData.filter((m) => m.category === 'service').length + 1,
+          createdAt: now,
+        });
+      }
+
+      await recordAudit('VISA_SERVICE_CHANGE', payload.serviceName, `Created visa service with reminder ${payload.reminderBeforeExpiry} days`);
+      return docRef.id;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, 'visaServices');
+    }
+  };
+
+  const updateVisaService = async (id: string, serviceData: Partial<VisaService>): Promise<void> => {
+    if (!isAdmin && !hasPermission('canEditReminderSettings')) {
+      throw new Error('Hanya Admin yang dapat mengelola Visa Services.');
+    }
+    try {
+      const now = new Date().toISOString();
+      const payload: Record<string, any> = {
+        ...serviceData,
+        updatedAt: now,
+        updatedBy: userProfile?.displayName || currentUser?.email || 'Admin',
+      };
+      if (payload.serviceName) payload.serviceName = payload.serviceName.trim();
+      if (payload.reminderBeforeExpiry) payload.reminderBeforeExpiry = Number(payload.reminderBeforeExpiry);
+
+      await updateDoc(doc(db, 'visaServices', id), payload);
+
+      const target = visaServices.find((s) => s.id === id);
+      const name = payload.serviceName || target?.serviceName || '';
+
+      if (name) {
+        // Auto-sync with reminderSettings
+        const existingRem = reminderSettings.find(
+          (r) => r.service.trim().toLowerCase() === name.toLowerCase()
+        );
+        const days = payload.reminderBeforeExpiry ?? target?.reminderBeforeExpiry ?? 60;
+        const isActive = (payload.status ?? target?.status) === 'Active';
+
+        if (existingRem) {
+          await updateDoc(doc(db, 'reminderSettings', existingRem.id), {
+            daysBeforeExpiry: days,
+            isActive,
+            updatedAt: now,
+            updatedBy: userProfile?.displayName || currentUser?.email || 'Admin',
+          });
+        }
+      }
+
+      await recordAudit('VISA_SERVICE_CHANGE', name || id, 'Updated visa service details');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `visaServices/${id}`);
+    }
+  };
+
+  const deleteVisaService = async (id: string): Promise<void> => {
+    if (!isAdmin) {
+      throw new Error('Hanya Admin yang dapat menghapus Visa Service.');
+    }
+    try {
+      const target = visaServices.find((s) => s.id === id);
+      await deleteDoc(doc(db, 'visaServices', id));
+      await recordAudit('VISA_SERVICE_CHANGE', target?.serviceName || id, 'Deleted visa service');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `visaServices/${id}`);
     }
   };
 
@@ -345,6 +534,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     remark: string;
     nextFollowUpDate?: string;
   }): Promise<void> => {
+    if (!isAdmin && !hasPermission('canAddFollowUp')) {
+      throw new Error('Anda tidak memiliki izin untuk menambah follow-up.');
+    }
     try {
       const client = clients.find((c) => c.id === followUp.clientId);
       const now = new Date().toISOString();
@@ -393,6 +585,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     items: Omit<VisaClient, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'createdById'>[],
     updateDuplicates: boolean
   ): Promise<{ imported: number; updated: number; skipped: number; failed: number }> => {
+    if (!isAdmin && !hasPermission('canImportExcel')) {
+      throw new Error('Anda tidak memiliki izin untuk import Excel.');
+    }
     let imported = 0;
     let updated = 0;
     let skipped = 0;
@@ -422,6 +617,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const normalizedItem = {
           ...item,
+          clientPhone: String(item.clientPhone || '').trim(),
           date: normalizeDateString(item.date || getTodayWITAString()),
           staypermit: normalizeDateString(item.staypermit),
           noPassport: String(item.noPassport || '').trim(),
@@ -476,6 +672,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 2. Continues to appear while today < expiry
   // 3. On expiry date (H-0), disappears (remainingDays <= 0)
   // 4. Past expiry, disappears
+  // 5. Formula: Reminder Date = Expiry Date - Reminder Days
   const getReminderInfo = (client: VisaClient): StayPermitReminderItem | null => {
     if (!client.staypermit || !client.service) return null;
 
@@ -484,18 +681,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return null; // Expired or 0 days (H-0), rule 3 & 4
     }
 
-    // Match reminder threshold for client's service
-    const setting = reminderSettings.find(
-      (r) => r.service.trim().toLowerCase() === client.service.trim().toLowerCase()
+    // Match reminder threshold: 1. check Visa Services, 2. fallback to Reminder Settings
+    let thresholdDays = 60;
+    const clientServiceNorm = client.service.trim().toLowerCase();
+
+    const matchedVisaService = visaServices.find(
+      (s) => s.serviceName.trim().toLowerCase() === clientServiceNorm
     );
 
-    // If setting exists and is inactive, ignore
-    if (setting && !setting.isActive) {
-      return null;
+    if (matchedVisaService) {
+      if (matchedVisaService.status === 'Inactive') {
+        return null; // Inactive services do not trigger reminders
+      }
+      thresholdDays = matchedVisaService.reminderBeforeExpiry || 60;
+    } else {
+      const setting = reminderSettings.find(
+        (r) => r.service.trim().toLowerCase() === clientServiceNorm
+      );
+      if (setting && !setting.isActive) {
+        return null;
+      }
+      thresholdDays = setting ? setting.daysBeforeExpiry : 60;
     }
-
-    // Default to 60 days if service is not in settings
-    const thresholdDays = setting ? setting.daysBeforeExpiry : 60;
 
     // Must be within threshold (H-threshold to H-1)
     if (remainingDays > thresholdDays) {
@@ -509,11 +716,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       urgency = 'warning';
     }
 
+    const reminderDate = calculateReminderDate(client.staypermit, thresholdDays) || undefined;
+
     return {
       client,
       remainingDays,
       urgency,
       thresholdDays,
+      reminderDate,
     };
   };
 
@@ -528,7 +738,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return list.sort((a, b) => a.remainingDays - b.remainingDays);
-  }, [clients, reminderSettings]);
+  }, [clients, reminderSettings, visaServices]);
 
   return (
     <DataContext.Provider
@@ -536,6 +746,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clients,
         masterData,
         reminderSettings,
+        visaServices,
         followUps,
         auditLogs,
         loading,
@@ -546,6 +757,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addMasterItem,
         updateMasterItem,
         deleteMasterItem,
+        addVisaService,
+        updateVisaService,
+        deleteVisaService,
         addReminderSetting,
         updateReminderSetting,
         addFollowUp,

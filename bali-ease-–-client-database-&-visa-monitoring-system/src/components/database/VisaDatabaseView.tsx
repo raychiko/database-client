@@ -27,7 +27,7 @@ import { AddFollowUpModal } from '../followup/AddFollowUpModal';
 
 export const VisaDatabaseView: React.FC = () => {
   const { clients, deleteClient, getMasterOptions, loading } = useData();
-  const { isAdmin } = useAuth();
+  const { isAdmin, hasPermission } = useAuth();
 
   // Search exclusively by Passport Number
   const [passportSearch, setPassportSearch] = useState<string>('');
@@ -72,11 +72,12 @@ export const VisaDatabaseView: React.FC = () => {
   const filteredClients = useMemo(() => {
     return clients
       .filter((client) => {
-        // STRICT PASSPORT-ONLY SEARCH
+        // Passport or Phone search
         if (passportSearch.trim()) {
           const queryClean = passportSearch.trim().toLowerCase();
           const passportClean = (client.noPassport || '').toLowerCase();
-          if (!passportClean.includes(queryClean)) {
+          const phoneClean = (client.clientPhone || '').toLowerCase();
+          if (!passportClean.includes(queryClean) && !phoneClean.includes(queryClean)) {
             return false;
           }
         }
@@ -152,13 +153,13 @@ export const VisaDatabaseView: React.FC = () => {
         {/* Passport search only (strict user requirement) */}
         <div className="flex-1 max-w-md">
           <label className="text-[10px] uppercase font-bold text-[#133D3D] block mb-1 tracking-wider">
-            Pencarian No Passport (Hanya Passport)
+            Pencarian No Passport / Phone
           </label>
           <div className="relative">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Ketik No Passport (sebagian atau seluruhnya)..."
+              placeholder="Ketik No Passport atau No Telepon..."
               value={passportSearch}
               onChange={(e) => {
                 setPassportSearch(e.target.value);
@@ -179,7 +180,7 @@ export const VisaDatabaseView: React.FC = () => {
 
         {/* Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {isAdmin && (
+          {(isAdmin || hasPermission('canImportExcel')) && (
             <button
               onClick={() => setIsImportModalOpen(true)}
               className="px-3 py-2 bg-white text-[#133D3D] border border-[#133D3D] rounded-lg text-xs font-semibold hover:bg-gray-50 transition-colors flex items-center gap-1.5 shadow-xs"
@@ -189,26 +190,30 @@ export const VisaDatabaseView: React.FC = () => {
             </button>
           )}
 
-          <div className="relative group">
-            <button
-              onClick={() => exportClientsToExcel(filteredClients, 'Visa_Database_Filtered.xlsx')}
-              className="px-3 py-2 bg-white text-emerald-800 border border-emerald-600 rounded-lg text-xs font-semibold hover:bg-emerald-50 transition-colors flex items-center gap-1.5 shadow-xs"
-            >
-              <Download className="w-4 h-4" />
-              Export Excel ({filteredClients.length})
-            </button>
-          </div>
+          {(isAdmin || hasPermission('canExportExcel')) && (
+            <div className="relative group">
+              <button
+                onClick={() => exportClientsToExcel(filteredClients, 'Visa_Database_Filtered.xlsx')}
+                className="px-3 py-2 bg-white text-emerald-800 border border-emerald-600 rounded-lg text-xs font-semibold hover:bg-emerald-50 transition-colors flex items-center gap-1.5 shadow-xs"
+              >
+                <Download className="w-4 h-4" />
+                Export Excel ({filteredClients.length})
+              </button>
+            </div>
+          )}
 
-          <button
-            onClick={() => {
-              setEditingClient(null);
-              setIsClientModalOpen(true);
-            }}
-            className="px-4 py-2 bg-[#133D3D] text-[#FDF7EB] rounded-lg text-xs font-semibold hover:bg-[#0d2a2a] transition-colors flex items-center gap-1.5 shadow-xs"
-          >
-            <Plus className="w-4 h-4" />
-            Add New Client
-          </button>
+          {(isAdmin || hasPermission('canCreateClient')) && (
+            <button
+              onClick={() => {
+                setEditingClient(null);
+                setIsClientModalOpen(true);
+              }}
+              className="px-4 py-2 bg-[#133D3D] text-[#FDF7EB] rounded-lg text-xs font-semibold hover:bg-[#0d2a2a] transition-colors flex items-center gap-1.5 shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              Add New Client
+            </button>
+          )}
         </div>
       </div>
 
@@ -315,6 +320,7 @@ export const VisaDatabaseView: React.FC = () => {
                 <th className="px-3 py-3">Imigrasi</th>
                 <th className="px-3 py-3">Service</th>
                 <th className="px-3 py-3 font-bold">Nama Client</th>
+                <th className="px-3 py-3">No. Telepon</th>
                 <th className="px-3 py-3">No Permohonan</th>
                 <th className="px-3 py-3 font-bold bg-[#0d2a2a]/60">No Passport</th>
                 <th className="px-3 py-3">Status</th>
@@ -329,13 +335,13 @@ export const VisaDatabaseView: React.FC = () => {
             <tbody className="divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={15} className="py-12 text-center text-gray-500">
+                  <td colSpan={16} className="py-12 text-center text-gray-500">
                     Memuat data Visa Database dari Cloud Firestore...
                   </td>
                 </tr>
               ) : paginatedClients.length === 0 ? (
                 <tr>
-                  <td colSpan={15} className="py-12 text-center text-gray-500">
+                  <td colSpan={16} className="py-12 text-center text-gray-500">
                     <p className="font-semibold text-gray-700">Tidak ada data client yang ditemukan.</p>
                     <p className="text-[11px] mt-1 text-gray-400">
                       Gunakan tombol "Add New Client" atau "Import Excel" untuk menambahkan data.
@@ -363,6 +369,9 @@ export const VisaDatabaseView: React.FC = () => {
                       </td>
                       <td className="px-3 py-2.5 font-semibold text-gray-900">
                         {client.namaClient}
+                      </td>
+                      <td className="px-3 py-2.5 font-mono text-gray-700">
+                        {client.clientPhone || '-'}
                       </td>
                       <td className="px-3 py-2.5 font-mono text-gray-600">
                         {client.noPermohonan || '-'}
@@ -412,27 +421,31 @@ export const VisaDatabaseView: React.FC = () => {
                           >
                             <Eye className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            title="Tambah Follow-up"
-                            onClick={() => {
-                              setFollowUpTargetClient(client);
-                              setIsFollowUpModalOpen(true);
-                            }}
-                            className="p-1.5 text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-md transition-colors"
-                          >
-                            <PhoneCall className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            title="Edit Data Client"
-                            onClick={() => {
-                              setEditingClient(client);
-                              setIsClientModalOpen(true);
-                            }}
-                            className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-md transition-colors"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-                          {isAdmin && (
+                          {(isAdmin || hasPermission('canAddFollowUp')) && (
+                            <button
+                              title="Tambah Follow-up"
+                              onClick={() => {
+                                setFollowUpTargetClient(client);
+                                setIsFollowUpModalOpen(true);
+                              }}
+                              className="p-1.5 text-amber-700 hover:text-amber-900 hover:bg-amber-50 rounded-md transition-colors"
+                            >
+                              <PhoneCall className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {(isAdmin || hasPermission('canEditClient')) && (
+                            <button
+                              title="Edit Data Client"
+                              onClick={() => {
+                                setEditingClient(client);
+                                setIsClientModalOpen(true);
+                              }}
+                              className="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-md transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {(isAdmin || hasPermission('canDeleteClient')) && (
                             <button
                               title="Hapus Data Client"
                               onClick={() => setClientToDelete(client)}
