@@ -122,10 +122,10 @@ export const Header: React.FC<HeaderProps> = ({ isSidebarOpen, onToggleSidebar }
               </div>
               <div className="hidden xl:block text-left">
                 <span className="text-xs font-bold text-gray-900 block leading-tight">
-                  {userProfile?.displayName || currentUser.email}
+                  {userProfile?.userId ? `[${userProfile.userId}] ` : ''}{userProfile?.displayName || currentUser.email}
                 </span>
                 <span className="text-[10px] text-gray-500 font-mono block">
-                  {currentUser.email}
+                  {userProfile?.userId ? `ID: ${userProfile.userId}` : currentUser.email}
                 </span>
               </div>
 

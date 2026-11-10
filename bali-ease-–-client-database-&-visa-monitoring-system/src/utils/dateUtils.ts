@@ -119,7 +119,7 @@ export function formatDateTimeDisplay(isoStr?: string): string {
       minute: '2-digit',
     }).format(date) + ' WITA';
   } catch {
-    return isoStr;
+    return isoStr || '-';
   }
 }
 
@@ -139,3 +139,4 @@ export function calculateReminderDate(expiryDateStr: string, reminderDays: numbe
   const resDate = new Date(reminderUtc);
   return resDate.toISOString().split('T')[0];
 }
+

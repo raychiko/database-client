@@ -11,6 +11,7 @@ export function exportClientsToExcel(clients: VisaClient[], filename = 'Visa_Dat
     'Imigrasi': client.imigrasi || '',
     'Service': client.service || '',
     'Nama Client': client.namaClient || '',
+    'No. Telepon / Phone': String(client.clientPhone || ''),
     'No Permohonan': client.noPermohonan || '',
     'No Passport': String(client.noPassport || ''), // preserve text
     'Status': client.status || '',
@@ -23,13 +24,35 @@ export function exportClientsToExcel(clients: VisaClient[], filename = 'Visa_Dat
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
 
-  // Ensure 'No Passport' column is formatted as text so leading zeroes are preserved
+  // Ensure 'No Passport' and 'No. Telepon / Phone' columns are formatted as text so leading zeroes are preserved
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-  // Column 7 (0-indexed) is 'No Passport'
+  
+  // Find column indices from header row
+  let passportColIdx = -1;
+  let phoneColIdx = -1;
+  for (let C = range.s.c; C <= range.e.c; ++C) {
+    const headerCell = worksheet[XLSX.utils.encode_cell({ r: range.s.r, c: C })];
+    if (headerCell) {
+      const headerVal = String(headerCell.v || '').toLowerCase();
+      if (headerVal.includes('passport')) passportColIdx = C;
+      if (headerVal.includes('telepon') || headerVal.includes('phone')) phoneColIdx = C;
+    }
+  }
+
   for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-    const cellAddress = XLSX.utils.encode_cell({ r: R, c: 7 });
-    if (worksheet[cellAddress]) {
-      worksheet[cellAddress].t = 's'; // string type
+    if (passportColIdx >= 0) {
+      const pCell = worksheet[XLSX.utils.encode_cell({ r: R, c: passportColIdx })];
+      if (pCell) {
+        pCell.t = 's';
+        pCell.v = String(pCell.v || '');
+      }
+    }
+    if (phoneColIdx >= 0) {
+      const phCell = worksheet[XLSX.utils.encode_cell({ r: R, c: phoneColIdx })];
+      if (phCell) {
+        phCell.t = 's';
+        phCell.v = String(phCell.v || '');
+      }
     }
   }
 
@@ -41,6 +64,7 @@ export function exportClientsToExcel(clients: VisaClient[], filename = 'Visa_Dat
     { wch: 24 }, // Imigrasi
     { wch: 18 }, // Service
     { wch: 25 }, // Nama Client
+    { wch: 20 }, // No. Telepon / Phone
     { wch: 18 }, // No Permohonan
     { wch: 16 }, // No Passport
     { wch: 14 }, // Status

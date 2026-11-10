@@ -16,8 +16,10 @@ import { SettingsView } from './components/settings/SettingsView';
 import { ClientDetailModal } from './components/database/ClientDetailModal';
 import { VisaClient } from './types';
 
+import { LoginView } from './components/auth/LoginView';
+
 function AppContent() {
-  const { loading } = useAuth();
+  const { currentUser, loading } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedClientForDetail, setSelectedClientForDetail] = useState<VisaClient | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -36,6 +38,10 @@ function AppContent() {
         </div>
       </div>
     );
+  }
+
+  if (!currentUser) {
+    return <LoginView />;
   }
 
   return (

@@ -18,6 +18,7 @@ const TARGET_FIELDS: { key: keyof VisaClient; label: string; aliases: string[] }
   { key: 'namaClient', label: 'Nama Client', aliases: ['nama client', 'nama', 'client name', 'name', 'client'] },
   { key: 'noPermohonan', label: 'No Permohonan', aliases: ['no permohonan', 'nomor permohonan', 'application no', 'app no'] },
   { key: 'noPassport', label: 'No Passport', aliases: ['no passport', 'nomor passport', 'passport no', 'passport', 'paspor', 'no paspor'] },
+  { key: 'clientPhone', label: 'Client Phone Number', aliases: ['client phone number', 'client phone', 'phone number', 'phone', 'no telp', 'no telepon', 'nomor telepon', 'telepon', 'telp', 'whatsapp', 'wa'] },
   { key: 'status', label: 'Status', aliases: ['status', 'visa status', 'kondisi'] },
   { key: 'staypermit', label: 'Staypermit', aliases: ['staypermit', 'stay permit', 'expired staypermit', 'expiry date', 'expired', 'masa berlaku'] },
   { key: 'evisa', label: 'EVISA', aliases: ['evisa', 'e-visa', 'no evisa', 'nomor evisa'] },
@@ -130,8 +131,8 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({ isOpen, onCl
         const colIdx = headers.indexOf(headerName);
         if (colIdx >= 0) {
           let val = row[colIdx];
-          if (tf.key === 'noPassport') {
-            // Strictly string to keep leading zeros
+          if (tf.key === 'noPassport' || tf.key === 'clientPhone') {
+            // Strictly string to keep leading zeros and + prefix
             record[tf.key] = String(val ?? '').trim();
           } else if (tf.key === 'date' || tf.key === 'staypermit') {
             record[tf.key] = normalizeDateString(val);
@@ -181,6 +182,38 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({ isOpen, onCl
     }
   };
 
+  const handleDownloadTemplate = () => {
+    const templateRows = [
+      {
+        'Date': '2026-01-15',
+        'Rekanan': 'Bali Express Travel',
+        'Imigrasi': 'Kantor Imigrasi Ngurah Rai',
+        'Service': 'Altus ITAS',
+        'Nama Client': 'John Michael Smith',
+        'No. Telepon / Phone': '+6281234567890',
+        'No Permohonan': 'W123456789',
+        'No Passport': 'A12345678',
+        'Status': 'Selesai',
+        'Staypermit': '2027-01-14',
+        'EVISA': 'EV-889900',
+        'Sponsor': 'PT Bali Terang Bersinar',
+        'Status Follow-up': 'Done / Closing',
+        'Remark': 'Stay permit issued successfully',
+      },
+    ];
+    const ws = XLSX.utils.json_to_sheet(templateRows);
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      const phCell = ws[XLSX.utils.encode_cell({ r: R, c: 5 })];
+      if (phCell) { phCell.t = 's'; phCell.v = String(phCell.v || ''); }
+      const passCell = ws[XLSX.utils.encode_cell({ r: R, c: 7 })];
+      if (passCell) { passCell.t = 's'; passCell.v = String(passCell.v || ''); }
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template Import');
+    XLSX.writeFile(wb, 'Template_Client_Database.xlsx');
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-[#FFFFFF] rounded-xl shadow-2xl border border-[#D6C3A2] w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -213,20 +246,29 @@ export const ImportExcelModal: React.FC<ImportExcelModalProps> = ({ isOpen, onCl
               <Upload className="w-12 h-12 text-[#133D3D] mb-3 opacity-80" />
               <h4 className="text-base font-medium text-[#133D3D]">Pilih atau Drag File Excel</h4>
               <p className="text-xs text-gray-500 mt-1 mb-4">Mendukung format spreadsheet Excel (.xlsx, .xls)</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx, .xls"
-                onChange={handleFileChange}
-                className="hidden"
-                id="excel-file-input"
-              />
-              <label
-                htmlFor="excel-file-input"
-                className="cursor-pointer px-5 py-2.5 bg-[#133D3D] text-[#FDF7EB] font-medium rounded-lg hover:bg-[#0d2a2a] transition-colors text-sm shadow-xs"
-              >
-                Pilih File Excel
-              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={handleFileChange}
+                  className="hidden"
+                  id="excel-file-input"
+                />
+                <label
+                  htmlFor="excel-file-input"
+                  className="cursor-pointer px-5 py-2.5 bg-[#133D3D] text-[#FDF7EB] font-medium rounded-lg hover:bg-[#0d2a2a] transition-colors text-sm shadow-xs"
+                >
+                  Pilih File Excel
+                </label>
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  className="px-4 py-2.5 bg-white border border-[#D6C3A2] text-[#133D3D] font-medium rounded-lg hover:bg-gray-50 transition-colors text-sm shadow-xs"
+                >
+                  Download Template
+                </button>
+              </div>
             </div>
           )}
 

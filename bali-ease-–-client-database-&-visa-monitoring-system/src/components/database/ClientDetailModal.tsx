@@ -138,6 +138,10 @@ export const ClientDetailModal: React.FC<ClientDetailModalProps> = ({
                     <span className="font-mono font-semibold text-gray-900 text-sm">{client.noPassport || '-'}</span>
                   </div>
                   <div>
+                    <span className="text-[10px] text-gray-500 uppercase block">No. Telepon / Phone</span>
+                    <span className="font-mono text-gray-900 font-medium">{client.clientPhone || '-'}</span>
+                  </div>
+                  <div>
                     <span className="text-[10px] text-gray-500 uppercase block">Tanggal Entri</span>
                     <span className="text-gray-800">{formatDateDisplay(client.date)}</span>
                   </div>

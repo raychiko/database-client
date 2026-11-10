@@ -17,7 +17,7 @@ import { ClientDetailModal } from '../database/ClientDetailModal';
 import { AddFollowUpModal } from '../followup/AddFollowUpModal';
 
 export const StayPermitReminderView: React.FC = () => {
-  const { activeReminders, reminderSettings } = useData();
+  const { activeReminders, reminderSettings, visaServices } = useData();
 
   const [urgencyFilter, setUrgencyFilter] = useState<'all' | 'urgent' | 'warning' | 'normal'>('all');
   const [serviceFilter, setServiceFilter] = useState<string>('');
@@ -204,9 +204,13 @@ export const StayPermitReminderView: React.FC = () => {
             className="border border-[#D6C3A2] rounded-md px-2 py-1 text-xs bg-white text-gray-800 focus:outline-none"
           >
             <option value="">Semua Service</option>
-            {reminderSettings.map((s) => (
-              <option key={s.id} value={s.service}>{s.service}</option>
-            ))}
+            {visaServices.length > 0
+              ? visaServices.map((s) => (
+                  <option key={s.id} value={s.serviceName}>{s.serviceName}</option>
+                ))
+              : reminderSettings.map((s) => (
+                  <option key={s.id} value={s.service}>{s.service}</option>
+                ))}
           </select>
         </div>
       </div>

@@ -25,7 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onToggle,
 }) => {
-  const { userProfile, isAdmin } = useAuth();
+  const { userProfile, isAdmin, hasPermission } = useAuth();
   const { activeReminders, clients } = useData();
 
   const reminderCount = activeReminders.length;
@@ -39,12 +39,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Dashboard',
       icon: LayoutDashboard,
       badge: null,
+      permissionKey: 'canViewDashboard' as const,
     },
     {
       id: 'database',
       label: 'Visa Database',
       icon: FileSpreadsheet,
       badge: clients.length > 0 ? clients.length : null,
+      permissionKey: 'canViewDatabase' as const,
     },
     {
       id: 'reminders',
@@ -52,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Bell,
       badge: reminderCount > 0 ? reminderCount : null,
       badgeColor: 'bg-rose-500 text-white',
+      permissionKey: 'canViewReminders' as const,
     },
     {
       id: 'followup',
@@ -59,14 +62,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: PhoneCall,
       badge: pendingFollowUpCount > 0 ? pendingFollowUpCount : null,
       badgeColor: 'bg-amber-500 text-white',
+      permissionKey: 'canViewFollowUp' as const,
     },
     {
       id: 'settings',
       label: 'Settings',
       icon: Settings,
       badge: null,
+      permissionKey: 'canViewSettings' as const,
     },
   ];
+
+  const visibleNavItems = navItems.filter((item) => {
+    if (isAdmin) return true;
+    return hasPermission(item.permissionKey);
+  });
 
   return (
     <>
@@ -135,7 +145,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Menu Utama
             </div>
 
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
               return (

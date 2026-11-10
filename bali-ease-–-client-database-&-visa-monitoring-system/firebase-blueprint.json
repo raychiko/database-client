@@ -37,6 +37,7 @@
         "namaClient": { "type": "string", "maxLength": 200 },
         "noPermohonan": { "type": "string", "maxLength": 128 },
         "noPassport": { "type": "string", "maxLength": 64 },
+        "clientPhone": { "type": "string", "maxLength": 64 },
         "status": { "type": "string", "maxLength": 128 },
         "staypermit": { "type": "string", "maxLength": 32 },
         "evisa": { "type": "string", "maxLength": 128 },
@@ -113,12 +114,29 @@
         "createdAt": { "type": "string" }
       },
       "required": ["userId", "userName", "activityType", "createdAt"]
+    },
+    "VisaService": {
+      "title": "VisaService",
+      "description": "Visa service definitions with duration and automatic reminder days",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "serviceName": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 128 },
+        "duration": { "type": "string", "maxLength": 64 },
+        "reminderBeforeExpiry": { "type": "number" },
+        "status": { "type": "string", "enum": ["Active", "Inactive"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["serviceName", "category", "duration", "reminderBeforeExpiry", "status"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "User",
-      "description": "User profiles and assigned role"
+      "description": "User profiles, CS User ID, credentials, and assigned permissions"
     },
     "/admins/{userId}": {
       "schema": "Admin",
@@ -135,6 +153,10 @@
     "/reminderSettings/{settingId}": {
       "schema": "ReminderSetting",
       "description": "Stay permit reminder thresholds per service"
+    },
+    "/visaServices/{serviceId}": {
+      "schema": "VisaService",
+      "description": "Visa service registry with integrated reminder days"
     },
     "/followUpHistory/{followUpId}": {
       "schema": "FollowUpRecord",
